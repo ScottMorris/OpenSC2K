@@ -43,11 +43,47 @@ func _run() -> void:
 	newspaper.web_paper._on_message('{"action":"metrics","articles":5}')
 	assert(newspaper.web_paper.diagnostics.articles == 5)
 	newspaper.web_paper.close()
+	_check_web_view_failure(newspaper)
 	_check_menu_and_forecast(newspaper)
 	_check_city_name_fallback(newspaper)
 	newspaper.free()
 	print("PASS: newspaper payload, licensed font, progression menu, forecast, opinion and headless guard")
 	quit()
+
+
+func _check_web_view_failure(newspaper: NewspaperDialog) -> void:
+	var web_paper := newspaper.web_paper
+	var failures := [0]
+	web_paper.unavailable.connect(func() -> void:
+		failures[0] += 1
+	)
+	# a view that never reports ready is dropped
+	web_paper.view = Control.new()
+	web_paper.add_child(web_paper.view)
+	web_paper._check_ready()
+	assert(web_paper.failed)
+	assert(web_paper.view == null)
+	assert(failures[0] == 1)
+	# a view that is ready is kept
+	web_paper.failed = false
+	web_paper.ready_for_data = true
+	web_paper.view = Control.new()
+	web_paper.add_child(web_paper.view)
+	web_paper._check_ready()
+	assert(not web_paper.failed)
+	assert(web_paper.view != null)
+	assert(failures[0] == 1)
+	web_paper.view.free()
+	web_paper.view = null
+	web_paper.ready_for_data = false
+	# the dialog stops hiding behind the transparent window
+	newspaper.transparent_bg = true
+	newspaper.popup_centered()
+	newspaper._show_web_unavailable()
+	assert(not newspaper.transparent_bg)
+	assert(newspaper.get_ok_button().visible)
+	assert(newspaper.get_ok_button().text == "Close")
+	newspaper.hide()
 
 
 func _check_city_name_fallback(newspaper: NewspaperDialog) -> void:

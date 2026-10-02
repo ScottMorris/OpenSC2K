@@ -58,6 +58,7 @@ func _ready() -> void:
 	web_paper = NewspaperWebView.new()
 	add_child(web_paper)
 	web_paper.action_requested.connect(_on_web_action)
+	web_paper.unavailable.connect(_show_web_unavailable)
 	visibility_changed.connect(func() -> void:
 		if not visible:
 			web_paper.close()
@@ -453,6 +454,22 @@ func _web_payload() -> Dictionary:
 func _open_web_newspaper() -> void:
 	if visible and web_paper != null:
 		web_paper.open(_web_payload())
+
+
+# the transparent window has nothing to show, so use the normal dialog look
+func _show_web_unavailable() -> void:
+	if not visible:
+		return
+
+	transparent_bg = false
+	remove_theme_stylebox_override("panel")
+	get_ok_button().show()
+	get_ok_button().text = "Close"
+	get_label().show()
+	dialog_text = "The HTML newspaper could not start on this system."
+	min_size = Vector2i(400, 120)
+	size = min_size
+	popup_centered()
 
 
 func _on_web_action(action: Dictionary) -> void:

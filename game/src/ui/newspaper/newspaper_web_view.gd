@@ -2,10 +2,15 @@ class_name NewspaperWebView
 extends Node
 
 signal action_requested(action: Dictionary)
+signal unavailable
+
+# the native page must report that it is ready within this time
+const READY_TIMEOUT_SEC := 5.0
 
 var view: Control
 var payload: Dictionary = {}
 var ready_for_data := false
+var failed := false
 var diagnostics: Dictionary = {}
 
 
@@ -36,6 +41,11 @@ func open(data: Dictionary) -> void:
 	if not supported():
 		return
 
+	if failed:
+		unavailable.emit.call_deferred()
+
+		return
+
 	if view == null:
 		view = ClassDB.instantiate("WebView") as Control
 		view.set("url", "")
@@ -49,6 +59,7 @@ func open(data: Dictionary) -> void:
 		view.connect("ipc_message", _on_message)
 		add_child(view)
 		view.call("zoom", page_zoom())
+		get_tree().create_timer(READY_TIMEOUT_SEC).timeout.connect(_check_ready)
 	else:
 		# the interface scale can change between openings
 		view.call("zoom", page_zoom())
@@ -60,6 +71,18 @@ func open(data: Dictionary) -> void:
 # same way as the interface
 func page_zoom() -> float:
 	return DisplayServer.screen_get_scale() * AppUiScale.relative
+
+
+# A native WebView that fails to start can leave the invisible newspaper window
+# open and blocking input. Give up on it and let the dialog show a normal message.
+func _check_ready() -> void:
+	if ready_for_data or view == null or failed:
+		return
+
+	failed = true
+	view.queue_free()
+	view = null
+	unavailable.emit()
 
 
 func close() -> void:
